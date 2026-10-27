@@ -1,5 +1,5 @@
 ### Multilingual code playground with code samples and low level understanding of code
-Needs setups and benchmarks for  executables running on linux to understand what's exactly going on with the process, how does it specifically behaves with the system from high level visual/functional changes upto low level assembly, CPU, memory, dma, cache and even hardware interactioons (not limited to) going on for the process on all fronts. Using pure linux commands/open source softwares:
+Needs setups and benchmarks for executables or services running on linux to understand what's exactly going on with the process, how does it specifically behaves with the system from high level visual/functional changes upto low level assembly, CPU, memory, dma, cache and even hardware interactioons (not limited to) going on for the process on all fronts. Using pure linux commands/open source softwares:
 - Profiler
 - Resource usage explorer ( cpu, io, memory etc )
 - File handles/open connenctions threads
