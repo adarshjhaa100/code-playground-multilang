@@ -58,10 +58,14 @@ sudo apt install -y build-essential htop atop lsof sysstat iproute2 strace linux
 # Debugging & Analysis
 sudo apt install -y gdb valgrind binutils
 
+# Advanced tools
+sudo apt install -y rr bpftrace
+
 # Advanced Tools (May require manual install or specific repos)
 # rr: https://rr-project.org/
 # Ghidra: https://ghidra-sre.org/
 # bpftrace: https://github.com/bpftrace/bpftrace
+# update-alternatives - maintain symlink for apt
 ```
 
 #### The Benchmark Scenario: "The Hasher"
@@ -83,6 +87,56 @@ If the program occasionally produces the wrong hash (a race condition), run `rr 
 
 **Step 5: Assembly Inspection**
 Once `perf` identifies the hot function (e.g., `hash_chunk`), use `objdump -d -M intel ./hasher | grep -A 20 <hash_chunk_address>` to look at the assembly. Are you using SIMD instructions (AVX2/AVX-512)? If not, the compiler failed to vectorize your loop.
+
+---
+
+## Integrating docker containers
+
+
+### 5. First Principles of Docker Observability
+Before applying tools to containers, we must define what a Docker container actually is at the kernel level. **A container is not a virtual machine.** It is a standard Linux process (or group of processes) that is:
+1. **Isolated via Namespaces:** The kernel provides the process with a virtualized, isolated view of global resources (PID, Mount, Network, IPC, UTS, and User namespaces). Inside the container, the main process believes it is PID 1. On the host, it has a standard, high-numbered Host PID.
+2. **Constrained via Cgroups (Control Groups):** The kernel tracks and limits resource usage (CPU quota, memory limits, I/O bandwidth) for this specific group of processes.
+3. **Layered via OverlayFS:** The filesystem is a union mount. Reads hit the container's writable layer first, then fall back to read-only image layers. 
+
+**The Observability Implication:** All the tools mentioned in Sections 1–4 *still work*, but you must either target the **Host PID** from the host OS, or inject the tool directly into the container's namespaces. Using `docker exec` is often suboptimal for deep profiling because it spawns a *new* process, which can miss transient events or alter the very timing you are trying to measure.
+
+---
+
+### 6. The 5-Step Benchmark Workflow (Docker Adaptation)
+To observe a containerized artifact (e.g., a Rust/C/Go binary running inside Docker), we adapt the workflow to respect namespace boundaries and cgroup limits.
+
+**Prerequisite: Resolve the Host PID**
+Every container observation starts by mapping the container to its host process:
+```bash
+HOST_PID=$(docker inspect -f '{{.State.Pid}}' <container_name_or_id>)
+```
+
+**Step 1: High-Level Resource Verification**
+*   **Action:** Run `pidstat -p $HOST_PID 1` on the host. This bypasses the container's PID namespace and shows the true kernel-level context switches and page faults of the container's main process.
+*   **Action:** Run `lsof -p $HOST_PID`. *Note on clarity:* The output will show host-level paths (e.g., `/var/lib/docker/overlay2/<hash>/diff/app/large_file.bin`). This confirms if the container is holding file descriptors open at the kernel level, regardless of the container's internal filesystem view.
+
+**Step 2: System Call Bifurcation**
+*   **Action:** Instead of `docker exec`, use `nsenter` to inject `strace` directly into the container's namespaces. This avoids spawning a new shell and captures the exact execution context.
+*   **Command:** `sudo nsenter -t $HOST_PID -a strace -c -f -p $HOST_PID` 
+*   *(The `-a` flag enters all namespaces: mount, UTS, IPC, network, and PID. `-f` follows forks/threads).*
+
+**Step 3: Hardware Profiling (The "Why")**
+*   **Action:** Run `perf` from the **host OS**, targeting the container's Host PID. This is superior to running `perf` inside the container, as it avoids the need to grant the container `--cap-add=SYS_ADMIN` or `--privileged` flags, maintaining a stricter security boundary.
+*   **Command:** `sudo perf stat -d -p $HOST_PID`
+*   **Analysis:** The L1-dcache misses and branch-misses are hardware-level events. The CPU does not care about namespaces; it only sees the Host PID executing instructions. The data is 100% accurate.
+
+**Step 4: Concurrency Determinism**
+*   **Action:** `rr` requires deep kernel integration (`ptrace` and `perf_event_open`). Running it on a host process that is heavily namespaced can sometimes fail due to seccomp filters. The most deterministic first-principles approach is to run `rr` *inside* a specifically prepared container.
+*   **Command:** Launch a debug container: `docker run --rm -it --cap-add=SYS_PTRACE --cap-add=SYS_ADMIN --security-opt seccomp=unconfined <image> /bin/bash`
+*   **Execution:** Inside this container, run `rr record ./hasher large_file.bin`. 
+*   **Extraction:** Once recorded, copy the trace to the host for safe analysis: `docker cp <container>:/root/.local/share/rr ./host_rr_trace`. You can then run `rr replay` on the host against this extracted trace.
+
+**Step 5: Assembly Inspection**
+*   **Action:** `objdump` requires the physical ELF binary. Since the binary lives inside the container's OverlayFS, extract it to the host first.
+*   **Command:** `docker cp <container>:/app/hasher ./hasher_host`
+*   **Analysis:** `objdump -d -M intel ./hasher_host | grep -A 20 <hash_chunk_address>`
+*   *(Note: As requested, Ghidra is excluded. For advanced control-flow graph analysis without Ghidra, use `rizin` or `radare2` on the extracted `./hasher_host` binary).*
 
 ---
 
