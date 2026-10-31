@@ -77,12 +77,15 @@ This is the core feature set of your tool. For each step, here is the conceptual
     *   *Pass Condition:* The tool must show a statistically significant delta in `L1-dcache-load-misses` between the two runs, proving it is accurately reading the physical CPU silicon counters.
 
 #### Step 4: Concurrency Determinism
-*   **Tools:** `rr` (Record and Replay)
-*   **Concept:** Record every syscall and hardware interrupt to deterministically replay race conditions.
-*   **Implementation:** Unlike Steps 1-3, this step *launches* the target. The tool must execute `rr record <target_binary>`. Once finished, it must execute `rr replay` and expose a way to step through execution.
-*   **Validation Criteria:**
-    *   *Test:* Create a target with a deliberate, non-deterministic race condition (e.g., an unsynchronized counter incremented by 4 threads). Run it 100 times natively; it will fail randomly.
-    *   *Pass Condition:* Run it 100 times via the tool's `rr record`. It must fail 100% of the time (or 0%, depending on the initial recording), proving `rr` has eliminated non-determinism.
+*   **Concept:** Inspect thread states, memory, and race conditions. You have two distinct paths based on the need for determinism vs. live inspection.
+*   **Path A: `gdb` (Live Attachment)**
+    *   *Mechanism:* Attaches directly to the existing Host PID. No process spawning required. Ideal for inspecting live thread backtraces, evaluating variables, and setting watchpoints on a hanging or misbehaving process.
+    *   *Execution:* `gdb -p <Host_PID>`. Use `thread apply all bt` to inspect all threads.
+    *   *Validation:* Attach to a paused, deadlocked multithreaded target $\rightarrow$ `thread apply all bt` accurately reflects the exact blocked state of all threads without restarting the app.
+*   **Path B: `rr` (Deterministic Record/Replay)**
+    *   *Mechanism:* Records every syscall/interrupt to eliminate non-determinism. *Requires launching the process*, not attaching.
+    *   *Execution:* `rr record <target_binary>`. 
+    *   *Validation:* Target has a random race condition $\rightarrow$ Fails randomly natively, but fails 100% deterministically under `rr record/replay`.
 
 #### Step 5: Assembly Inspection
 *   **Tools:** `objdump` (or `rizin`/`radare2` for advanced control flow)
