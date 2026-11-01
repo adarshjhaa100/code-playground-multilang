@@ -16,6 +16,7 @@ Proposed Features (not limited to)
     - Row wise storage
     - Efficient packing
     - In memory as well as persistent
+- Customized no block observability
 - types ( int, float, text )
 - CRUD ops allowed
 - Select querying - fast fetch rows, cols with a query plan in place
