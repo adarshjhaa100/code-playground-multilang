@@ -1,13 +1,13 @@
-TODO:
+rough design:
 - Separator for fields (;|;) and row(;n;) Every row starts with separator. Last row has no separator
 - Create DB: folder, metadata containing information regarding tables
     DB = db_filename, {table1, table2, ....upto max limit whateves}
-    TABLE ->
+    TABLE -> ( rethink for rows, might be unnecessary i guess )
         table_i = ( name, schema, offset, length, rows, index )
         index -> map row id to page_id + offset of row ( BTree and HashMap )
         schema = {field1, field2, ....}
         field_i = (name, type, max_length)
-        row_i = (id, page_id, offset, length, )
+        row_i = (id, page_id, offset, length, ) - instead, use index to find rows
         pages = {page1, page2, page3....}
         page_i = (id, offset, address)
 
@@ -17,7 +17,9 @@ TODO:
         offset + length allowing navigation
 - Create Table: Schema, data structure, allocation, parsing strategy
 
-
+TODO:
+    - Full complete LLD + HLD
+    - observability tooling setup (start with https://bpftrace.org/tutorial-one-liners)
 
 
 ---
