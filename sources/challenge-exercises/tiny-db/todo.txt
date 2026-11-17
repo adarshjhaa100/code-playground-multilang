@@ -20,6 +20,7 @@ rough design:
 TODO:
     - Full complete LLD + HLD
     - observability tooling setup (start with https://bpftrace.org/tutorial-one-liners)
+    - Deterministic Simulation Testing
 
 
 ---
