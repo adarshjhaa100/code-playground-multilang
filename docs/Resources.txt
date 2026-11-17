@@ -1,0 +1,6 @@
+Deterministic Simulation Testing:
+    - Antithesis: https://antithesis.com/docs/resources/deterministic_simulation_testing/
+    - https://notes.eatonphil.com/2024-08-20-deterministic-simulation-testing.html
+    - Protocol aware DST: https://tigerbeetle.com/blog/2026-08-20-protocol-aware-dst/
+
+RR (better GDB, with deterministic replays): https://rr-project.org/
